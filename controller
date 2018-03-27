@@ -1,0 +1,52 @@
+#!/bin/sh
+
+# This script takes as input an image file, and burns it into the microsd card.
+# Then, it will switch the microsd connection to the target board, and resets it.
+
+# assumptions:
+# 1. This script is using "switcher" to switch the connection of the microsd card. so all the assumptions made in "switcher" also apply here.
+# 2. Microsd card shows up as "da0" at the host device.
+
+if [ $# -ne 1 ];
+then
+	usage
+fi
+
+img_file=$1
+micro_sd="da0"
+reset_pin=24
+
+usage()
+{
+	echo "usage: controller image"
+	echo "image	img file to be burnt to the mircosd card"
+	exit 1
+}
+
+initialize_gpio()
+{
+	gpioctl -c $reset_pin OUT
+	gpioctl $reset_pin 1
+}
+
+reset_target()
+{
+	gpioctl $reset_pin 0
+	gpioctl $reset_pin 1
+}
+
+main()
+{
+	#initialize gpio pins, and their states
+	initialize_gpio
+	# switch control to host
+	./switcher -h
+	# burn the image file
+	dd if=$img_file of=/dev/$micro_sd block=1m
+	# switch control to target
+	./switcher -t
+	# reset the target
+	reset_target
+	# TODO: capture boot messages
+}
+
