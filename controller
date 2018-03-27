@@ -7,21 +7,24 @@
 # 1. This script is using "switcher" to switch the connection of the microsd card. so all the assumptions made in "switcher" also apply here.
 # 2. Microsd card shows up as "da0" at the host device.
 
-if [ $# -ne 1 ];
+
+usage()
+{
+	echo "usage:"
+	echo "	controller [-r]"
+	echo "	controller [-m img]"
+	echo "-r 	Reset target"
+	echo "-m img	burn img to target, then reboot the target."
+	exit 1
+}
+
+if [ $# -lt 1 ];
 then
 	usage
 fi
 
-img_file=$1
 micro_sd="da0"
 reset_pin=24
-
-usage()
-{
-	echo "usage: controller image"
-	echo "image	img file to be burnt to the mircosd card"
-	exit 1
-}
 
 initialize_gpio()
 {
@@ -31,6 +34,7 @@ initialize_gpio()
 
 reset_target()
 {
+	initialize_gpio
 	gpioctl $reset_pin 0
 	gpioctl $reset_pin 1
 }
@@ -38,15 +42,34 @@ reset_target()
 main()
 {
 	#initialize gpio pins, and their states
+	if [ -z $1 ];
+	then
+		usage
+	fi;
+	img_file=$1
+	if [ ! -f $img_file ];
+	then
+		echo "$1: file not found."
+		exit 1
+	fi;
 	initialize_gpio
 	# switch control to host
 	./switcher -h
 	# burn the image file
-	dd if=$img_file of=/dev/$micro_sd block=1m
+	echo "burning $img_file to /dev/$microsd"
+	#dd if=$img_file of=/dev/$micro_sd block=1m
+	sleep 1
+	gpart show $micro_sd
 	# switch control to target
 	./switcher -t
 	# reset the target
+	echo "power cycling the target."
 	reset_target
 	# TODO: capture boot messages
 }
 
+case $1 in
+	"-r") reset_target;;
+	"-m") main $2;;
+	*) usage;;
+esac
